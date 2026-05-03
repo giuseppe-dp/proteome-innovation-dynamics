@@ -1,10 +1,15 @@
 import numpy as np
 from scipy import stats
 import pandas as pd
+
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
+
 import dtale as dt
 from pathlib import Path
 import os
+
+from script import analizza_prognosi_innovazione
 
 # --- CARICAMENTO DATI ---
 file_path = "risultati_heaps_innovazione.csv"
@@ -21,11 +26,13 @@ plt.rcParams['mathtext.fontset'] = 'cm'
 # impostiamo la grandezza dei font degli oggetti principali
 plt.rcParams.update({'font.size': 12})        # Font base
 plt.rcParams.update({'axes.titlesize': 11})   # Titoli dei grafici
-plt.rcParams.update({'axes.labelsize': 13})   # Label dei grafici
+plt.rcParams.update({'axes.labelsize': 14})   # Label dei grafici
 plt.rcParams.update({'legend.fontsize': 12})   # Legenda
 plt.rcParams.update({'lines.linewidth': 1.8})   # Larghezza linee
 plt.rcParams.update({'lines.linestyle': 'solid'})   # Larghezza linee
 plt.rcParams.update({'lines.markersize': 5})  # Grandezza marker
+
+# ---- 1) Ci interessa sapere come varia l'innovazione con la taglia. La probabilità di innovazione è costante per sistemi che hanno taglie diverse? 
 
 # Regressioni (Per trovare beta)
 # Usiamo i logaritmi per trovare la pendenza della retta nel piano log-log
@@ -69,9 +76,10 @@ ax1.loglog(df_heaps['n'], fit_fam_p, color='C3', linestyle='--',
            label=fr'Fit: $\beta \approx {beta_fam_p:.3f}$ ($R^2={r_fam_p**2:.3f}$)')
 
 #ax1.set_xlabel('$n$')
-ax1.set_ylabel('$F(n)$')
+ax1.set_ylabel(r'$F_{fam}$')
 ax1.set_ylim(top=1e5)
 ax1.legend(loc='lower right')
+ax1.grid(True, which="both", ls="-", alpha=0.3)
 
 # Plot 2: Clan
 bx1.loglog(df_heaps['n'], df_heaps['Fn_clan'], 'd', color='C1', alpha=0.5, label='Dati Pfam (Clan)')
@@ -85,10 +93,11 @@ fit_clan_p = 10**intercept_clan_p * (df_heaps['n']**beta_clan_p)
 bx1.loglog(df_heaps['n'], fit_clan_p, color='C3', linestyle='--', 
            label=fr'Fit: $\beta \approx {beta_clan_p:.3f}$ ($R^2={r_clan_p**2:.3f}$)')
 
-bx1.set_xlabel('$n$')
-bx1.set_ylabel('$F(n)$')
+bx1.set_xlabel('Taglia cumulativa $n$')
+bx1.set_ylabel(r'$F_{clan}$')
 bx1.set_ylim(top=1e5)
 bx1.legend(loc='lower right')
+bx1.grid(True, which="both", ls="-", alpha=0.3)
 
 # salvo il plot in PDF
 plt.tight_layout()  # Evita che i titoli o le etichette vengano tagliati
@@ -103,8 +112,44 @@ print(f"Esponente Famiglie plateau: {beta_fam_p:.4f}")
 print(f"Esponente Clan plateau: {beta_clan_p:.4f}")
 
 
+# ---- 2) Ci interessa sapere se la diversità è prognostica di innovazione, cioè se sistemi che hanno un patrimonio più ricco di moduli di classi diverse hanno più tendenza a innovare.
+cartella_dati = "dati_proteomi" 
+nome_output = "risultati_heaps_innovazione.csv"
+df_prognosi = analizza_prognosi_innovazione(nome_output)
+
+# Scatter Plot: Diversità (Clan) vs Innovazione (Rate Famiglie)
+fig2, (ax2) = plt.subplots(1, 1, figsize=(width, height))
+
+scatter = ax2.scatter(
+  df_prognosi['Fn_clan'], 
+  df_prognosi['innovation_rate'], 
+  c=df_prognosi['n'], # Colore basato sulla taglia per vedere l'evoluzione temporale
+  norm=LogNorm(), # Colore trattato logaritmicamente
+  cmap='viridis', 
+  marker='H',
+  alpha=0.6, 
+  edgecolors='none',
+  s=30
+)
+
+ax2.set_xscale('log')
+ax2.set_yscale('log')
+ax2.set_xlabel(r'$F_{clan}$')
+ax2.set_ylabel(r'$\Delta F_{fam} / \Delta n$')
+ax2.grid(True, which="both", ls="-", alpha=0.3)
+
+cbar = fig2.colorbar(scatter, ax=ax2)
+cbar.set_label('Taglia cumulativa $n$')
+
+# salvo il plot in PDF
+plt.tight_layout()  # Evita che i titoli o le etichette vengano tagliati
+cartella_salvataggio = Path(r"C:\Users\calci\OneDrive\Desktop\Lab\Computazionale\DC2\latex\plot")
+percorso_finale = cartella_salvataggio / f'Prognosi_innovazione.pdf'
+plt.savefig(percorso_finale, format='pdf', bbox_inches='tight')
+print(f"Salvato con successo in: {percorso_finale}")
+
 # D-Tale per ispezione finale
-d = dt.show(df_heaps, host='localhost')
+d = dt.show(df_prognosi, host='localhost')
 # d.open_browser() # Decommenta se vuoi aprirlo subito
 
 plt.show()
