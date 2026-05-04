@@ -115,41 +115,74 @@ print(f"Esponente Clan plateau: {beta_clan_p:.4f}")
 # ---- 2) Ci interessa sapere se la diversità è prognostica di innovazione, cioè se sistemi che hanno un patrimonio più ricco di moduli di classi diverse hanno più tendenza a innovare.
 cartella_dati = "dati_proteomi" 
 nome_output = "risultati_heaps_innovazione.csv"
-df_prognosi = analizza_prognosi_innovazione(nome_output)
+nome_modello_a = "heaps_modello_a.csv"
 
-# Scatter Plot: Diversità (Clan) vs Innovazione (Rate Famiglie)
-fig2, (ax2) = plt.subplots(1, 1, figsize=(width, height))
+df_reale = pd.read_csv(nome_output)
+df_null = pd.read_csv(nome_modello_a)
 
+# Funzione interna per calcolare il tasso di innovazione
+def calcola_rate(df):
+  df = df.copy()
+  df['dn'] = df['n'].diff()
+  df['df_fam'] = df['Fn_family'].diff()
+  df['innovation_rate'] = df['df_fam'] / df['dn']
+  return df.dropna()
+
+df_p_reale = calcola_rate(df_reale)
+df_p_null = calcola_rate(df_null)
+
+width  = 6
+height = width / 1.618
+fig, ax2 = plt.subplots(figsize=(width, height))
+
+# --- DATI REALI (Scatter con Colore logaritmico) ---
 scatter = ax2.scatter(
-  df_prognosi['Fn_clan'], 
-  df_prognosi['innovation_rate'], 
-  c=df_prognosi['n'], # Colore basato sulla taglia per vedere l'evoluzione temporale
-  norm=LogNorm(), # Colore trattato logaritmicamente
+  df_p_reale['Fn_clan'], 
+  df_p_reale['innovation_rate'], 
+  c=df_p_reale['n'], 
+  norm=LogNorm(), 
   cmap='viridis', 
   marker='H',
   alpha=0.6, 
   edgecolors='none',
-  s=30
+  s=40,
+  label='Dati Reali (Pfam)'
 )
 
+# --- MODELLO A (Linea Rossa di confronto) ---
+# Usiamo una media mobile o una linea per il modello nullo per pulizia visiva
+ax2.plot(
+  df_p_null['Fn_clan'], 
+  df_p_null['innovation_rate'], 
+  color='red', 
+  linestyle='--', 
+  linewidth=2, 
+  alpha=0.8,
+  label='Modello A (Sampling)'
+)
+
+# Impostazioni Assi
 ax2.set_xscale('log')
 ax2.set_yscale('log')
-ax2.set_xlabel(r'$F_{clan}$')
-ax2.set_ylabel(r'$\Delta F_{fam} / \Delta n$')
-ax2.grid(True, which="both", ls="-", alpha=0.3)
+ax2.set_xlabel(r'Patrimonio di Clan ($F_{clan}$)')
+ax2.set_ylabel(r'Tasso di Innovazione ($\Delta F_{fam} / \Delta n$)')
+ax2.grid(True, which="both", ls="-", alpha=0.2)
 
-cbar = fig2.colorbar(scatter, ax=ax2)
+# Legenda e Colorbar
+ax2.legend(loc='lower left')
+cbar = fig.colorbar(scatter, ax=ax2)
 cbar.set_label('Taglia cumulativa $n$')
 
-# salvo il plot in PDF
-plt.tight_layout()  # Evita che i titoli o le etichette vengano tagliati
+# Salvataggio
+plt.tight_layout()
 cartella_salvataggio = Path(r"C:\Users\calci\OneDrive\Desktop\Lab\Computazionale\DC2\latex\plot")
-percorso_finale = cartella_salvataggio / f'Prognosi_innovazione.pdf'
+cartella_salvataggio.mkdir(parents=True, exist_ok=True)
+percorso_finale = cartella_salvataggio / 'Prognosi_innovazione_confronto.pdf'
 plt.savefig(percorso_finale, format='pdf', bbox_inches='tight')
 print(f"Salvato con successo in: {percorso_finale}")
 
 # D-Tale per ispezione finale
-d = dt.show(df_prognosi, host='localhost')
+d = dt.show(df_reale, host='localhost')
 # d.open_browser() # Decommenta se vuoi aprirlo subito
 
 plt.show()

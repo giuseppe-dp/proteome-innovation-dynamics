@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import random
 from pathlib import Path
 from tqdm import tqdm
@@ -99,9 +100,66 @@ def analizza_prognosi_innovazione(csv_file):
   return df_prognosi
 
 
+def genera_modello_A_sampling(folder_path, output_csv):
+  path = Path(folder_path)
+  files = list(path.glob("*.tsv.gz"))
+  
+  # Caricamento di tutti i domini in memoria (universo)
+  tutti_i_domini = []
+  for f in tqdm(files, desc="Caricamento dell'universo dei domini"):
+    try:
+      # Carichiamo solo le colonne necessarie per risparmiare memoria
+      df = pd.read_csv(
+        f, sep='\t', comment='#', header=None, usecols=[5, 13], 
+        names=['family', 'clan'], engine='c',
+        na_values=['No_clan','\\N', ''] 
+      )
+      tutti_i_domini.append(df)
+    except:
+      continue
+  print("Universo caricato!")
+  
+  # Concateniamo tutto in un unico DataFrame
+  universo = pd.concat(tutti_i_domini, ignore_index=True)
+  del tutti_i_domini # Liberiamo memoria
+  
+  # Rimescolamento casuale
+  universo = universo.sample(frac=1).reset_index(drop=True)
+  
+  # Generazione della curva di Heaps rimescolata
+  n_totale = 0
+  visti_famiglie = set()
+  visti_clan = set()
+  next_checkpoint = 10
+  fattore_crescita = 1.1
+  risultati_null = []
+
+  # Iteriamo sull'universo rimescolato
+  for fam, cl in tqdm(zip(universo['family'], universo['clan']), total=len(universo), desc="Iterando sull'universo"):
+    n_totale += 1
+    visti_famiglie.add(fam)
+    if pd.notna(cl):
+      visti_clan.add(cl)
+    
+    if n_totale >= next_checkpoint:
+      risultati_null.append({
+        'n': n_totale,
+        'Fn_family': len(visti_famiglie),
+        'Fn_clan': len(visti_clan)
+      })
+      next_checkpoint = int(next_checkpoint * fattore_crescita) + 1
+          
+  # Salvataggio
+  df_null = pd.DataFrame(risultati_null)
+  df_null.to_csv(output_csv, index=False)
+  print(f"Modello A completato e salvato in {output_csv}")
+  return df_null
+
+
 if __name__ == "__main__":
   cartella_dati = "dati_proteomi" 
   nome_output = "risultati_heaps_innovazione.csv"
+  nome_modello_a = "heaps_modello_a.csv"
 
   # Controllo se rigenerare i dati
   my_file = Path(nome_output)
@@ -113,3 +171,16 @@ if __name__ == "__main__":
       df_heaps = pd.read_csv(nome_output)
   else:
     df_heaps = genera_dati_innovazione(cartella_dati, nome_output)
+
+  # Controllo se rigenerare i dati
+  my_file_2 = Path(nome_modello_a)
+  if my_file_2.is_file():
+    response = input(f"Il file {nome_output} esiste. Rigenerare? (y/n): ")
+    if response.lower() == 'y':
+      df_heaps = genera_modello_A_sampling(cartella_dati, nome_modello_a)
+    else:
+      df_heaps = pd.read_csv(nome_modello_a)
+  else:
+    df_heaps = genera_modello_A_sampling(cartella_dati, nome_modello_a)
+
+  
