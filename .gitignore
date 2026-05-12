@@ -1,7 +1,7 @@
 *.csv
 latex/
 dati_proteomi/
-analisi_precedente/
+analisi_precendente
 lista_taxid_batteri_alta_qualita.tsv
 bac120_metadata.tsv.gz
 ncbi_taxonomy.txt
