@@ -1,7 +1,7 @@
-risultati_heaps_innovazione.csv
+*.csv
 latex/
 dati_proteomi/
+analisi_precedente/
 lista_taxid_batteri_alta_qualita.tsv
 bac120_metadata.tsv.gz
 ncbi_taxonomy.txt
-heaps_modello_a.csv

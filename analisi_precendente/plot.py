@@ -9,7 +9,7 @@ import dtale as dt
 from pathlib import Path
 import os
 
-from script import analizza_prognosi_innovazione
+from script import analizza_prognosi_innovazione, analizza_innovazione_per_clan
 
 # --- CARICAMENTO DATI ---
 file_path = "risultati_heaps_innovazione.csv"
@@ -64,7 +64,7 @@ fig1, (ax1, bx1) = plt.subplots(2, 1, figsize=(width, height + 4))
 plt.subplots_adjust(hspace=0.5)
 
 # Plot 1: Famiglie
-ax1.loglog(df_heaps['n'], df_heaps['Fn_family'], 'o', color='C0', alpha=0.5, label='Dati Pfam (Famiglie)')
+ax1.loglog(df_heaps['n'], df_heaps['Fn_family'], 'o', color='royalblue', alpha=0.5, label='Dati Pfam (Famiglie)')
 # Linea di fit innovazione
 fit_fam = 10**intercept_fam * (df_heaps['n']**beta_fam)
 ax1.loglog(df_heaps['n'], fit_fam, color='black', linestyle='--', 
@@ -72,7 +72,7 @@ ax1.loglog(df_heaps['n'], fit_fam, color='black', linestyle='--',
 
 # Linea di fit plateau
 fit_fam_p = 10**intercept_fam_p * (df_heaps['n']**beta_fam_p)
-ax1.loglog(df_heaps['n'], fit_fam_p, color='C3', linestyle='--', 
+ax1.loglog(df_heaps['n'], fit_fam_p, color='crimson', linestyle='--', 
            label=fr'Fit: $\beta \approx {beta_fam_p:.3f}$ ($R^2={r_fam_p**2:.3f}$)')
 
 #ax1.set_xlabel('$n$')
@@ -82,7 +82,7 @@ ax1.legend(loc='lower right')
 ax1.grid(True, which="both", ls="-", alpha=0.3)
 
 # Plot 2: Clan
-bx1.loglog(df_heaps['n'], df_heaps['Fn_clan'], 'd', color='C1', alpha=0.5, label='Dati Pfam (Clan)')
+bx1.loglog(df_heaps['n'], df_heaps['Fn_clan'], 'd', color='forestgreen', alpha=0.5, label='Dati Pfam (Clan)')
 # Linea di fit
 fit_clan = 10**intercept_clan * (df_heaps['n']**beta_clan)
 bx1.loglog(df_heaps['n'], fit_clan, color='black', linestyle='--', 
@@ -90,7 +90,7 @@ bx1.loglog(df_heaps['n'], fit_clan, color='black', linestyle='--',
 
 # Linea di fit plateau
 fit_clan_p = 10**intercept_clan_p * (df_heaps['n']**beta_clan_p)
-bx1.loglog(df_heaps['n'], fit_clan_p, color='C3', linestyle='--', 
+bx1.loglog(df_heaps['n'], fit_clan_p, color='crimson', linestyle='--', 
            label=fr'Fit: $\beta \approx {beta_clan_p:.3f}$ ($R^2={r_clan_p**2:.3f}$)')
 
 bx1.set_xlabel('Taglia cumulativa $n$')
@@ -113,6 +113,7 @@ print(f"Esponente Clan plateau: {beta_clan_p:.4f}")
 
 
 # ---- 2) Ci interessa sapere se la diversità è prognostica di innovazione, cioè se sistemi che hanno un patrimonio più ricco di moduli di classi diverse hanno più tendenza a innovare.
+
 cartella_dati = "dati_proteomi" 
 nome_output = "risultati_heaps_innovazione.csv"
 nome_modello_a = "heaps_modello_a.csv"
@@ -131,32 +132,29 @@ def calcola_rate(df):
 df_p_reale = calcola_rate(df_reale)
 df_p_null = calcola_rate(df_null)
 
-width  = 6
-height = width / 1.618
-fig, ax2 = plt.subplots(figsize=(width, height))
+fig2, ax2 = plt.subplots(figsize=(width, height))
 
-# --- DATI REALI (Scatter con Colore logaritmico) ---
+# --- dati reali da pfam  ---
 scatter = ax2.scatter(
-  df_p_reale['Fn_clan'], 
-  df_p_reale['innovation_rate'], 
-  c=df_p_reale['n'], 
-  norm=LogNorm(), 
-  cmap='viridis', 
+  df_p_reale['Fn_clan'],
+  df_p_reale['innovation_rate'],
+  c=df_p_reale['n'],
+  norm=LogNorm(),
+  cmap='viridis',
   marker='H',
-  alpha=0.6, 
+  alpha=0.6,
   edgecolors='none',
   s=40,
   label='Dati Reali (Pfam)'
 )
 
-# --- MODELLO A (Linea Rossa di confronto) ---
-# Usiamo una media mobile o una linea per il modello nullo per pulizia visiva
+# --- modello a (sampling) ---
 ax2.plot(
-  df_p_null['Fn_clan'], 
-  df_p_null['innovation_rate'], 
-  color='red', 
-  linestyle='--', 
-  linewidth=2, 
+  df_p_null['Fn_clan'],
+  df_p_null['innovation_rate'],
+  color='crimson',
+  linestyle='--',
+  linewidth=2,
   alpha=0.8,
   label='Modello A (Sampling)'
 )
@@ -170,7 +168,7 @@ ax2.grid(True, which="both", ls="-", alpha=0.2)
 
 # Legenda e Colorbar
 ax2.legend(loc='lower left')
-cbar = fig.colorbar(scatter, ax=ax2)
+cbar = fig2.colorbar(scatter, ax=ax2)
 cbar.set_label('Taglia cumulativa $n$')
 
 # Salvataggio
@@ -181,8 +179,58 @@ percorso_finale = cartella_salvataggio / 'Prognosi_innovazione_confronto.pdf'
 plt.savefig(percorso_finale, format='pdf', bbox_inches='tight')
 print(f"Salvato con successo in: {percorso_finale}")
 
+
+# ---- 3) Ci interessa capire il ruolo delle funzioni/tematiche nell'innovazione.
+#         Come si comporta l'innovazione all'interno di una specifica tematica? Ci sono tematiche specifiche che catalizzano l'innovazione?
+#         Il fatto di avere più o meno ricchezza tematica influenza di per sé l'innovazione? 
+
+df_clan_raw = pd.read_csv("heaps_clan.csv")
+
+fig3, ax3 = plt.subplots(figsize=(width, height))
+
+# Iteriamo su ogni Clan usando groupby
+# name è il clan_id, group è il sotto-dataframe con i dati di quel clan
+for clan_id, group in df_clan_raw.groupby('clan'):
+  
+  # Estraiamo i vettori n_c e fn_family dal gruppo
+  n_c = group['n_c'].values
+  fn_c = group['fn_family'].values
+  
+  # Calcolo differenziale del Tasso di Innovazione locale
+  # Rc = ΔF / Δn
+  dn = np.diff(n_c)
+  df = np.diff(fn_c)
+  
+  # Evitiamo divisioni per zero se dn è 0
+  with np.errstate(divide='ignore', invalid='ignore'):
+    rc = df / dn
+  
+  # Filtriamo eventuali valori non validi (es. se dn=0 o rc=0 per il log plot)
+  valid = (rc > 0)
+  
+  # Plot Rc vs nc (taglia specifica del clan)
+  # Usiamo n_c[1:] perché la diff riduce la lunghezza dell'array di 1
+  ax3.plot(n_c[1:][valid], rc[valid], label=f'Clan: {clan_id}', alpha=0.8, linewidth=2)
+
+# Formattazione assi
+ax3.set_xscale('log')
+ax3.set_yscale('log')
+ax3.set_xlabel(r'Taglia specifica del Clan ($n_c$)')
+ax3.set_ylabel(r'Tasso di Innovazione ($R_c$)')
+
+# Spostiamo la legenda fuori se sono molti clan
+ax3.legend(loc='lower left')
+ax3.grid(True, which="both", ls="-", alpha=0.2)
+# Salvataggio
+plt.tight_layout()
+cartella_salvataggio = Path(r"C:\Users\calci\OneDrive\Desktop\Lab\Computazionale\DC2\latex\plot")
+cartella_salvataggio.mkdir(parents=True, exist_ok=True)
+percorso_finale = cartella_salvataggio / 'Innovazione_clan.pdf'
+plt.savefig(percorso_finale, format='pdf', bbox_inches='tight')
+print(f"Salvato con successo in: {percorso_finale}")
+
 # D-Tale per ispezione finale
-d = dt.show(df_reale, host='localhost')
-# d.open_browser() # Decommenta se vuoi aprirlo subito
+d = dt.show(df_p_reale, host='localhost')
+d.open_browser() # Decommenta se vuoi aprirlo subito
 
 plt.show()

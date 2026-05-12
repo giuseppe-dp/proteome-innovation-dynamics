@@ -76,6 +76,7 @@ async def download_file(client, taxid, save_dir, semaphore):
         return f"ERRORE_{response.status_code}"
     except Exception as e:
       return f"ECCEZIONE: {type(e).__name__}"
+    
 
 async def download_proteomi(taxid_list):
   save_dir = Path("dati_proteomi")
